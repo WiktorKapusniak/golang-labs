@@ -33,48 +33,6 @@ const (
 var customerNames = []string{"Anna", "Bartek", "Celina", "Damian", "Emilia"}
 var itemList = []string{"Laptop", "Myszka", "Monitor", "Klawiatura", "Słuchawki"}
 
-func main() {
-	rand.Seed(time.Now().UnixNano())
-
-	orderCh := make(chan Order)
-	resultCh := make(chan ProcessResult)
-
-	var wg sync.WaitGroup
-
-	// Startujemy generowanie zamówień
-	go generateOrders(orderCh)
-
-	// Uruchamiamy workerów
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go worker(i, orderCh, resultCh, &wg)
-	}
-
-	// Zamykamy kanał wyników, gdy wszyscy workerzy skończą
-	go func() {
-		wg.Wait()
-		close(resultCh)
-	}()
-
-	// Zbieramy wyniki
-	var total, success, failure int
-	for result := range resultCh {
-		total++
-		if result.Success {
-			success++
-			fmt.Printf("Sukces [%d] %s (%v)\n", result.OrderID, result.CustomerName, result.ProcessTime)
-		} else {
-			failure++
-			fmt.Printf("Niepowodzenie [%d] %s: %v\n", result.OrderID, result.CustomerName, result.Error)
-		}
-	}
-
-	// Statystyki
-	fmt.Println("\nStatystyki:")
-	fmt.Printf("Łącznie zamówień: %d\n", total)
-	fmt.Printf("Udane: %d (%.2f%%)\n", success, float64(success)/float64(total)*100)
-	fmt.Printf("Nieudane: %d (%.2f%%)\n", failure, float64(failure)/float64(total)*100)
-}
 
 func generateOrders(orderCh chan<- Order) {
 	for i := 1; i <= numOrders; i++ {
@@ -123,4 +81,43 @@ func worker(id int, orderCh <-chan Order, resultCh chan<- ProcessResult, wg *syn
 		}
 		resultCh <- result
 	}
+}
+
+
+func main() {
+	rand.Seed(time.Now().UnixNano())
+
+	orderCh := make(chan Order)
+	resultCh := make(chan ProcessResult)
+
+	var wg sync.WaitGroup
+
+	go generateOrders(orderCh)
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go worker(i, orderCh, resultCh, &wg)
+	}
+
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	var total, success, failure int
+	for result := range resultCh {
+		total++
+		if result.Success {
+			success++
+			fmt.Printf("Sukces [%d] %s (%v)\n", result.OrderID, result.CustomerName, result.ProcessTime)
+		} else {
+			failure++
+			fmt.Printf("Niepowodzenie [%d] %s: %v\n", result.OrderID, result.CustomerName, result.Error)
+		}
+	}
+
+	fmt.Println("\nStatystyki:")
+	fmt.Printf("Łącznie zamówień: %d\n", total)
+	fmt.Printf("Udane: %d (%.2f%%)\n", success, float64(success)/float64(total)*100)
+	fmt.Printf("Nieudane: %d (%.2f%%)\n", failure, float64(failure)/float64(total)*100)
 }
